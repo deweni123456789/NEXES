@@ -11,8 +11,9 @@ async def run_ytdlp(url: str, user_id: int):
         "format": "best[ext=mp4]/best",
         "merge_output_format": "mp4",
         "noplaylist": True,
-        "quiet": True,
         "nocheckcertificate": True,
+        "quiet": False,  # Show logs for debugging
+        "verbose": True,
     }
 
     loop = asyncio.get_event_loop()
@@ -22,7 +23,19 @@ async def run_ytdlp(url: str, user_id: int):
         return {"error": str(e)}
 
 def _download(url, ydl_opts):
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filepath = ydl.prepare_filename(info)
-        return {"filepath": filepath, "title": info.get("title", "Video")}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filepath = ydl.prepare_filename(info)
+
+            size_mb = os.path.getsize(filepath) / 1024 / 1024
+            print(f"[DOWNLOADER] Video downloaded: {filepath} ({size_mb:.2f} MB)")
+
+            # Telegram limit check
+            if size_mb > 2000:
+                return {"error": f"Video too large ({size_mb:.2f} MB) for Telegram upload."}
+
+            return {"filepath": filepath, "title": info.get("title", "Video")}
+    except Exception as e:
+        print(f"[DOWNLOADER ERROR] {str(e)}")
+        return {"error": str(e)}
