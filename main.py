@@ -3,16 +3,18 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import API_ID, API_HASH, BOT_TOKEN, BOT_USERNAME
 
-# ✅ Initialize bot
+# Import modules manually
+from modules import facebook, instagram
+
+# Initialize bot
 app = Client(
     "fb_insta_downloader",
     api_id=API_ID,
     api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-    plugins=dict(root="modules")  # Load handlers from modules/
+    bot_token=BOT_TOKEN
 )
 
-# ✅ Start command
+# Start command
 @app.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     text = (
