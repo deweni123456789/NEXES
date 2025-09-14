@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup
+from pyrogram.enums import ParseMode
 import os
 import re
 from modules.downloader import download_facebook_video
@@ -20,14 +21,18 @@ app = Client(
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
-    parse_mode="html"
+    parse_mode=ParseMode.HTML
 )
 
 # Start command
 @app.on_message(filters.command("start") & filters.private)
 async def start_cmd(c, m):
     text = "👋 Send me a Facebook video link (post / reel / story) and I'll try to download it."
-    await m.reply_text(text, reply_markup=make_start_keyboard(BOT_USERNAME), quote=True)
+    await m.reply_text(
+        text,
+        reply_markup=make_start_keyboard(BOT_USERNAME),
+        quote=True
+    )
 
 # URL handler (fixed for Pyrogram v2)
 @app.on_message(filters.private & ~filters.command(["start", "help"]))
@@ -69,7 +74,10 @@ async def url_handler(c, m):
 # Help command
 @app.on_message(filters.command("help") & filters.private)
 async def help_cmd(c, m):
-    await m.reply_text("📥 Send a Facebook video link and I’ll download it.\n\n⚠️ Note: Big videos may exceed Telegram’s upload limits.", quote=True)
+    await m.reply_text(
+        "📥 Send a Facebook video link and I’ll download it.\n\n⚠️ Note: Big videos may exceed Telegram’s upload limits.",
+        quote=True
+    )
 
 if __name__ == '__main__':
     print("🚀 Bot starting...")
