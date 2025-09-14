@@ -1,6 +1,6 @@
 from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.downloader import run_ytdlp
+from utils.keyboard import make_uploaded_keyboard
 import os
 from main import app
 
@@ -21,21 +21,10 @@ async def fb_handler(client, message):
 
     await msg.edit_text("⬆️ Uploading video...")
 
-    # ✅ Make inline buttons in row style
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("👨‍💻 Developer", url="https://t.me/deweni2"),
-            InlineKeyboardButton("💬 Support", url="https://t.me/slmusicmania"),
-            InlineKeyboardButton("📩 Contact Bot", url=f"https://t.me/{client.me.username}")
-        ]
-    ])
+    buttons = make_uploaded_keyboard(bot_username=client.me.username)
 
     try:
-        await message.reply_video(
-            video=filepath,
-            caption=f"🎬 {title}",
-            reply_markup=buttons  # <-- attach inline keyboard here
-        )
+        await message.reply_video(video=filepath, caption=f"🎬 {title}", reply_markup=buttons)
     except Exception as e:
         await msg.edit_text(f"❌ Upload failed: {str(e)}")
         return
