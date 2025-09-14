@@ -2,6 +2,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup
 import os
+import re
 from modules.downloader import download_facebook_video
 from modules.buttons import make_uploaded_keyboard, make_start_keyboard
 
@@ -22,17 +23,20 @@ app = Client(
     parse_mode="html"
 )
 
+# Start command
 @app.on_message(filters.command("start") & filters.private)
 async def start_cmd(c, m):
     text = "👋 Send me a Facebook video link (post / reel / story) and I'll try to download it."
     await m.reply_text(text, reply_markup=make_start_keyboard(BOT_USERNAME), quote=True)
 
-@app.on_message(filters.private & filters.entity("url"))
+# URL handler (fixed for Pyrogram v2)
+@app.on_message(filters.private & ~filters.command(["start", "help"]))
 async def url_handler(c, m):
-    urls = [ent.url for ent in m.entities if getattr(ent, "url", None)]
+    urls = re.findall(r'(https?://\S+)', m.text or "")
     if not urls:
-        return
+        return await m.reply_text("⚠️ Please send a valid Facebook video link.")
     url = urls[0]
+
     msg = await m.reply_text("🔎 Fetching video info...", quote=True)
     try:
         info = await download_facebook_video(url, m.from_user.id)
@@ -47,6 +51,7 @@ async def url_handler(c, m):
     await msg.edit("⬇️ Downloading video...")
     path = info.get("filepath")
     title = info.get("title", "facebook_video")
+
     try:
         caption = f"{title}\n\nDownloaded from: {url}"
         uploading = await m.reply_text("📤 Uploading to Telegram...", quote=True)
@@ -61,6 +66,7 @@ async def url_handler(c, m):
         except:
             pass
 
+# Help command
 @app.on_message(filters.command("help") & filters.private)
 async def help_cmd(c, m):
     await m.reply_text("📥 Send a Facebook video link and I’ll download it.\n\n⚠️ Note: Big videos may exceed Telegram’s upload limits.", quote=True)
