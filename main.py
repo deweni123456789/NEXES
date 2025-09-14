@@ -6,7 +6,6 @@ from pyrogram.enums import ParseMode
 
 from modules.downloader import download_facebook_video
 from modules.instagram import download_instagram_video
-from modules.buttons import make_start_keyboard
 
 # ==================================================
 # Config
