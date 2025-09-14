@@ -1,28 +1,37 @@
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.downloader import run_ytdlp
+import yt_dlp
+import asyncio
+import os
+import re
+from typing import Dict
 
-@Client.on_message(filters.private & filters.regex(r"(https?://(www\.)?(instagram\.com|instagr\.am)[^\s]+)"))
-async def insta_handler(client, message):
-    url = message.text.strip()
-    msg = await message.reply_text("🔎 Fetching Instagram video...")
+OUTDIR = "/tmp"
 
-    result = await run_ytdlp(url, message.from_user.id)
-    if "error" in result:
-        return await msg.edit_text(f"❌ Error: {result['error']}")
+async def download_instagram_video(url: str, user_id: int) -> Dict:
+    """
+    Download Instagram video using yt-dlp without requiring FFmpeg.
+    Returns a dict with keys: filepath, title OR error.
+    """
+    # sanitize filename
+    def slug(s):
+        return re.sub(r'[^\\w\\-\\. ]', '_', s)[:120]
 
-    filepath = result["filepath"]
-    title = result["title"]
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _download_sync, url, slug)
 
-    await msg.edit_text("⬆️ Uploading video...")
-    await message.reply_video(
-        video=filepath,
-        caption=f"🎬 {title}",
-        reply_markup=InlineKeyboardMarkup(
-            [[
-                InlineKeyboardButton("👨‍💻 Developer", url="https://t.me/deweni2"),
-                InlineKeyboardButton("💬 Support", url="https://t.me/slmusicmania"),
-            ]]
-        )
-    )
-    await msg.delete()
+def _download_sync(url, slugfn):
+    # Use 'best' format to avoid needing ffmpeg
+    ydl_opts = {
+        "format": "best",  # single file (no merging needed)
+        "outtmpl": os.path.join(OUTDIR, "%(title)s.%(ext)s"),
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filepath = ydl.prepare_filename(info)
+            title = info.get("title") or "instagram_video"
+            return {"filepath": filepath, "title": title}
+    except Exception as e:
+        return {"error": str(e)}
