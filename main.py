@@ -3,9 +3,6 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import API_ID, API_HASH, BOT_TOKEN, BOT_USERNAME
 
-# Import modules manually
-from modules import facebook, instagram
-
 # Initialize bot
 app = Client(
     "fb_insta_downloader",
@@ -13,6 +10,10 @@ app = Client(
     api_hash=API_HASH,
     bot_token=BOT_TOKEN
 )
+
+# Import modules after app is created
+import modules.facebook
+import modules.instagram
 
 # Start command
 @app.on_message(filters.command("start") & filters.private)
