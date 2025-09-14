@@ -1,37 +1,32 @@
-import yt_dlp
-import asyncio
+from pyrogram import filters
+from utils.downloader import run_ytdlp
+from utils.keyboard import make_uploaded_keyboard
 import os
-import re
-from typing import Dict
+from main import app
 
-OUTDIR = "/tmp"
+@app.on_message(filters.private & filters.regex(r"https?://(www\.)?(instagram\.com|instagr\.am)/[^\s]+"))
+async def insta_handler(client, message):
+    url = message.text.strip()
+    msg = await message.reply_text("🔎 Fetching Instagram video...")
 
-async def download_instagram_video(url: str, user_id: int) -> Dict:
-    """
-    Download Instagram video using yt-dlp without requiring FFmpeg.
-    Returns a dict with keys: filepath, title OR error.
-    """
-    # sanitize filename
-    def slug(s):
-        return re.sub(r'[^\\w\\-\\. ]', '_', s)[:120]
+    result = await run_ytdlp(url, message.from_user.id)
+    if "error" in result:
+        return await msg.edit_text(f"❌ Error: {result['error']}")
 
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _download_sync, url, slug)
+    filepath = result["filepath"]
+    title = result["title"]
 
-def _download_sync(url, slugfn):
-    # Use 'best' format to avoid needing ffmpeg
-    ydl_opts = {
-        "format": "best",  # single file (no merging needed)
-        "outtmpl": os.path.join(OUTDIR, "%(title)s.%(ext)s"),
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-    }
+    if not os.path.exists(filepath):
+        return await msg.edit_text("❌ Error: Video file not found after download.")
+
+    await msg.edit_text("⬆️ Uploading video...")
+
+    buttons = make_uploaded_keyboard(bot_username=client.me.username)
+
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filepath = ydl.prepare_filename(info)
-            title = info.get("title") or "instagram_video"
-            return {"filepath": filepath, "title": title}
+        await message.reply_video(video=filepath, caption=f"🎬 {title}", reply_markup=buttons)
     except Exception as e:
-        return {"error": str(e)}
+        await msg.edit_text(f"❌ Upload failed: {str(e)}")
+        return
+
+    await msg.delete()
