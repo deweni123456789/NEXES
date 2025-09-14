@@ -1,84 +1,87 @@
-#!/usr/bin/env python3
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup
-from pyrogram.enums import ParseMode
 import os
-import re
-from modules.downloader import download_facebook_video
-from modules.buttons import make_uploaded_keyboard, make_start_keyboard
+import asyncio
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from pyrogram.enums import ParseMode
 
-# Load config from env
-API_ID = int(os.environ.get("API_ID", "0"))
+from modules.downloader import download_facebook_video
+from modules.instagram import download_instagram_video
+from modules.buttons import make_start_keyboard
+
+# ==================================================
+# Config
+# ==================================================
+API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "YourBotUsername")  # without @
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "fb_insta_downloader_bot")
 
-if not BOT_TOKEN or API_ID == 0 or not API_HASH:
+if not all([API_ID, API_HASH, BOT_TOKEN]):
     raise SystemExit("❌ Please set API_ID, API_HASH and BOT_TOKEN environment variables (see README).")
 
 app = Client(
-    "fb_downloader_bot",
+    "fb_insta_downloader",
     api_id=API_ID,
     api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-    parse_mode=ParseMode.HTML
+    bot_token=BOT_TOKEN
 )
 
-# Start command
+# ==================================================
+# Start Command
+# ==================================================
 @app.on_message(filters.command("start") & filters.private)
-async def start_cmd(c, m):
-    text = "👋 Send me a Facebook video link (post / reel / story) and I'll try to download it."
+async def start_cmd(client: Client, m: Message):
+    text = (
+        "👋 Hello!\n\n"
+        "📥 Send me a **Facebook** or **Instagram** video link "
+        "and I’ll download it for you."
+    )
     await m.reply_text(
         text,
         reply_markup=make_start_keyboard(BOT_USERNAME),
-        quote=True
+        parse_mode=ParseMode.HTML
     )
 
-# URL handler (fixed for Pyrogram v2)
-@app.on_message(filters.private & ~filters.command(["start", "help"]))
-async def url_handler(c, m):
-    urls = re.findall(r'(https?://\S+)', m.text or "")
-    if not urls:
-        return await m.reply_text("⚠️ Please send a valid Facebook video link.")
-    url = urls[0]
+# ==================================================
+# Facebook Handler
+# ==================================================
+@app.on_message(filters.private & filters.regex(r"(https?://(www\.)?(facebook\.com|fb\.watch)[^\s]+)"))
+async def fb_handler(client: Client, m: Message):
+    url = m.matches[0].group(1)
+    msg = await m.reply_text("🔎 Fetching Facebook video...", quote=True)
 
-    msg = await m.reply_text("🔎 Fetching video info...", quote=True)
-    try:
-        info = await download_facebook_video(url, m.from_user.id)
-    except Exception as e:
-        await msg.edit(f"❌ Failed: <code>{e}</code>")
-        return
+    result = await download_facebook_video(url, m.from_user.id)
+    if "error" in result:
+        return await msg.edit_text(f"❌ Error: {result['error']}")
 
-    if info.get("error"):
-        await msg.edit(f"❌ {info['error']}")
-        return
+    filepath = result["filepath"]
+    title = result["title"]
 
-    await msg.edit("⬇️ Downloading video...")
-    path = info.get("filepath")
-    title = info.get("title", "facebook_video")
+    await msg.edit_text("⬆️ Uploading video to Telegram...")
+    await m.reply_video(video=filepath, caption=f"📥 {title}")
+    os.remove(filepath)
 
-    try:
-        caption = f"{title}\n\nDownloaded from: {url}"
-        uploading = await m.reply_text("📤 Uploading to Telegram...", quote=True)
-        await m.reply_document(path, caption=caption, reply_markup=make_uploaded_keyboard(BOT_USERNAME))
-        await uploading.delete()
-        await msg.delete()
-    except Exception as e:
-        await msg.edit(f"❌ Upload failed: <code>{e}</code>")
-    finally:
-        try:
-            os.remove(path)
-        except:
-            pass
+# ==================================================
+# Instagram Handler
+# ==================================================
+@app.on_message(filters.private & filters.regex(r"(https?://(www\.)?(instagram\.com|instagr\.am)[^\s]+)"))
+async def insta_handler(client: Client, m: Message):
+    url = m.matches[0].group(1)
+    msg = await m.reply_text("🔎 Fetching Instagram video...", quote=True)
 
-# Help command
-@app.on_message(filters.command("help") & filters.private)
-async def help_cmd(c, m):
-    await m.reply_text(
-        "📥 Send a Facebook video link and I’ll download it.\n\n⚠️ Note: Big videos may exceed Telegram’s upload limits.",
-        quote=True
-    )
+    result = await download_instagram_video(url, m.from_user.id)
+    if "error" in result:
+        return await msg.edit_text(f"❌ Error: {result['error']}")
 
-if __name__ == '__main__':
-    print("🚀 Bot starting...")
-    app.run()
+    filepath = result["filepath"]
+    title = result["title"]
+
+    await msg.edit_text("⬆️ Uploading video to Telegram...")
+    await m.reply_video(video=filepath, caption=f"📥 {title}")
+    os.remove(filepath)
+
+# ==================================================
+# Run Bot
+# ==================================================
+print("🚀 Bot starting...")
+app.run()
